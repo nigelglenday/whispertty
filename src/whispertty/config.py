@@ -11,6 +11,7 @@ _DEFAULT_CONFIG_PATH = Path.home() / ".config" / "whispertty" / "config.toml"
 DEFAULTS: dict = {
     "transcripts_dir": str(Path.home() / "Documents" / "transcripts"),
     "whisper_model": "base",
+    "whisper_backend": "auto",  # "auto" (mlx if available) | "mlx" | "openai"
     "default_recording": "mic",  # "mic" | "system"
     "auto_open_after_stop": False,
     "auto_copy_on_stop": True,  # land transcript text on clipboard after stop

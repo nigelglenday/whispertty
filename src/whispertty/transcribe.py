@@ -17,8 +17,6 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-# Whisper installs to either /Library/Frameworks/Python... (Python.org installer)
-# or somewhere on PATH (homebrew Python, conda, etc). Probe both.
 _WHISPER_CANDIDATES = [
     "/Library/Frameworks/Python.framework/Versions/3.14/bin/whisper",
     "/Library/Frameworks/Python.framework/Versions/3.13/bin/whisper",
@@ -27,6 +25,26 @@ _WHISPER_CANDIDATES = [
     "/opt/homebrew/bin/whisper",
     "/usr/local/bin/whisper",
 ]
+
+# pipx installs whispertty's mlx-whisper into a venv whose bin/ dir
+# isn't on the system PATH. Probe directly.
+_MLX_WHISPER_CANDIDATES = [
+    Path.home() / ".local" / "pipx" / "venvs" / "whispertty" / "bin" / "mlx_whisper",
+]
+
+# Map shorthand model names to mlx-community model IDs on Hugging Face.
+_MLX_MODEL_MAP = {
+    "tiny": "mlx-community/whisper-tiny-mlx",
+    "tiny.en": "mlx-community/whisper-tiny.en-mlx",
+    "base": "mlx-community/whisper-base-mlx",
+    "base.en": "mlx-community/whisper-base.en-mlx",
+    "small": "mlx-community/whisper-small-mlx",
+    "small.en": "mlx-community/whisper-small.en-mlx",
+    "medium": "mlx-community/whisper-medium-mlx",
+    "medium.en": "mlx-community/whisper-medium.en-mlx",
+    "large": "mlx-community/whisper-large-v3-mlx",
+    "large-v3": "mlx-community/whisper-large-v3-mlx",
+}
 
 
 def _find_whisper() -> str:
@@ -39,6 +57,35 @@ def _find_whisper() -> str:
     raise RuntimeError(
         "whisper binary not found. Install with: pip install -U openai-whisper"
     )
+
+
+def find_mlx_whisper() -> str | None:
+    """Locate mlx_whisper binary, or None if not installed."""
+    p = shutil.which("mlx_whisper")
+    if p:
+        return p
+    for c in _MLX_WHISPER_CANDIDATES:
+        if c.exists():
+            return str(c)
+    return None
+
+
+def resolve_backend(preferred: str = "auto") -> str:
+    """Decide which Whisper backend to use.
+
+    'auto' → mlx if installed, else openai.
+    'mlx'  → mlx (raises if not installed).
+    'openai' → openai (always available if `whisper` is on PATH).
+    """
+    if preferred == "auto":
+        return "mlx" if find_mlx_whisper() else "openai"
+    if preferred == "mlx":
+        if not find_mlx_whisper():
+            raise RuntimeError(
+                "whisper_backend='mlx' but mlx_whisper isn't installed. "
+                "Install with: pipx inject whispertty mlx-whisper"
+            )
+    return preferred
 
 
 def wav_duration_seconds(path: Path) -> float:
@@ -120,28 +167,41 @@ def _run_whisper_with_progress(
         )
 
 
+def _build_cmd(
+    backend: str, wav: Path, output_dir: Path, model: str, output_format: str
+) -> list[str]:
+    """Build the appropriate CLI invocation for the chosen backend."""
+    if backend == "mlx":
+        mlx = find_mlx_whisper()
+        assert mlx is not None
+        model_id = _MLX_MODEL_MAP.get(model, model)
+        return [
+            mlx, str(wav),
+            "--model", model_id,
+            "--output-format", output_format,
+            "--output-dir", str(output_dir),
+        ]
+    # openai-whisper
+    return [
+        _find_whisper(), str(wav),
+        "--model", model,
+        "--output_format", output_format,
+        "--output_dir", str(output_dir),
+    ]
+
+
 def transcribe_file(
     wav: Path,
     output_dir: Path,
     model: str = "base",
     *,
+    backend: str = "openai",
     console: Console | None = None,
     description: str = "Transcribing",
 ) -> Path:
-    """Run Whisper on `wav`, output JSON to `output_dir`. Returns JSON path.
-
-    If `console` is provided, shows a Rich Progress bar driven by Whisper's
-    timestamp stream. Otherwise runs silently.
-    """
-    whisper = _find_whisper()
+    """Run Whisper on `wav`, output JSON to `output_dir`. Returns JSON path."""
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        whisper,
-        str(wav),
-        "--model", model,
-        "--output_format", "json",
-        "--output_dir", str(output_dir),
-    ]
+    cmd = _build_cmd(backend, wav, output_dir, model, "json")
     if console is not None:
         duration = wav_duration_seconds(wav)
         _run_whisper_with_progress(cmd, duration, description, console)
@@ -214,19 +274,13 @@ def transcribe_one_track(
     output_dir: Path,
     model: str = "base",
     *,
+    backend: str = "openai",
     console: Console | None = None,
     description: str = "Transcribing",
 ) -> Path:
     """Transcribe a single-track recording. Returns the .txt path."""
-    whisper = _find_whisper()
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        whisper,
-        str(wav),
-        "--model", model,
-        "--output_format", "txt",
-        "--output_dir", str(output_dir),
-    ]
+    cmd = _build_cmd(backend, wav, output_dir, model, "txt")
     if console is not None:
         duration = wav_duration_seconds(wav)
         _run_whisper_with_progress(cmd, duration, description, console)

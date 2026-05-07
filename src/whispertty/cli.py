@@ -458,15 +458,22 @@ def _transcribe_and_finalize(meta) -> str | None:
     timestamp stream — gives both percentage done and estimated time
     remaining."""
     model = config.get("whisper_model") or "base"
+    backend_pref = config.get("whisper_backend") or "auto"
+    try:
+        backend = transcribe.resolve_backend(backend_pref)
+    except RuntimeError as e:
+        ui.error(str(e))
+        return None
+    desc_suffix = f"{backend} · {model}"
     out_dir = config.transcripts_dir()
     files = [Path(f) for f in meta.files]
 
     try:
         if meta.mode == "mic":
             txt = transcribe.transcribe_one_track(
-                files[0], out_dir, model=model,
+                files[0], out_dir, model=model, backend=backend,
                 console=ui.console,
-                description=f"Transcribing ({model})",
+                description=f"Transcribing ({desc_suffix})",
             )
             if not config.get("keep_audio"):
                 files[0].unlink(missing_ok=True)
@@ -475,14 +482,14 @@ def _transcribe_and_finalize(meta) -> str | None:
         # system mode: two tracks
         remote_wav, local_wav = files[0], files[1]
         remote_json = transcribe.transcribe_file(
-            remote_wav, out_dir, model=model,
+            remote_wav, out_dir, model=model, backend=backend,
             console=ui.console,
-            description=f"Transcribing remote ({model})",
+            description=f"Transcribing remote ({desc_suffix})",
         )
         local_json = transcribe.transcribe_file(
-            local_wav, out_dir, model=model,
+            local_wav, out_dir, model=model, backend=backend,
             console=ui.console,
-            description=f"Transcribing local ({model})",
+            description=f"Transcribing local ({desc_suffix})",
         )
 
         # Merge to <stem>.txt where stem matches the timestamp+label without
