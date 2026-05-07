@@ -36,6 +36,18 @@ class RecordingMeta:
     started: float  # epoch seconds
     prev_output: str | None
     files: list[str]  # absolute paths to wav files (1 for mic, 2 for system)
+    input_device: str | None = None  # system default input at start time
+
+
+# Substrings that indicate an "input" device which would record silence
+# instead of voice (loopback drivers, virtual audio cables, etc.).
+_SUSPICIOUS_INPUTS = ("BlackHole", "Loopback", "Aggregate", "Multi-Output")
+
+
+def is_suspicious_input(name: str | None) -> bool:
+    if not name:
+        return False
+    return any(s.lower() in name.lower() for s in _SUSPICIOUS_INPUTS)
 
 
 def _which(name: str) -> str:
@@ -68,6 +80,19 @@ def get_current_output() -> str | None:
         return None
     try:
         return subprocess.check_output([bin_path, "-c"], text=True).strip()
+    except subprocess.SubprocessError:
+        return None
+
+
+def get_current_input() -> str | None:
+    """Return current default input device name, or None if unavailable."""
+    bin_path = _switch_audio_source()
+    if not bin_path:
+        return None
+    try:
+        return subprocess.check_output(
+            [bin_path, "-t", "input", "-c"], text=True
+        ).strip()
     except subprocess.SubprocessError:
         return None
 
@@ -245,6 +270,7 @@ def start(
         started=time.time(),
         prev_output=prev_output,
         files=files,
+        input_device=get_current_input(),
     )
     PID_FILE.write_text(str(proc.pid))
     _write_meta(meta)

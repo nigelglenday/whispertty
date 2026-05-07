@@ -79,6 +79,7 @@ def cli(ctx: click.Context, no_splash: bool) -> None:
 def rec_cmd(label: str | None, system_mode: bool) -> None:
     """Start a backgrounded recording. Use `whispertty stop` to end."""
     mode = "system" if system_mode else "mic"
+    _warn_if_suspicious_input()
     try:
         meta = recorder.start(
             transcripts_dir=config.transcripts_dir(),
@@ -90,13 +91,30 @@ def rec_cmd(label: str | None, system_mode: bool) -> None:
         sys.exit(1)
 
     ui.info(f"Recording ({meta.mode}) started [PID {meta.pid}]")
+    ui.console.print(f"[soft]Input:  {meta.input_device or '(unknown)'}[/soft]")
     if meta.prev_output and meta.mode == "system":
         ui.console.print(
-            f"[soft]Audio output switched: '{meta.prev_output}' → '{recorder.MULTI_OUTPUT_NAME}'[/soft]"
+            f"[soft]Output: {meta.prev_output} → {recorder.MULTI_OUTPUT_NAME}[/soft]"
         )
     for f in meta.files:
         ui.console.print(f"[soft]  {f}[/soft]")
     ui.console.print("\n[nav]Run `whispertty stop` when done.[/nav]")
+
+
+def _warn_if_suspicious_input() -> None:
+    """Warn (but don't block) if the system's current input device looks
+    like one that would record silence instead of voice."""
+    current = recorder.get_current_input()
+    if recorder.is_suspicious_input(current):
+        ui.warn(
+            f"Heads up: system input is '{current}', which is unlikely to capture voice."
+        )
+        ui.console.print(
+            "[soft]Switch in System Settings → Sound → Input, or run:[/soft]"
+        )
+        ui.console.print(
+            '[soft]  SwitchAudioSource -t input -s "MacBook Air Microphone"[/soft]'
+        )
 
 
 @cli.command("stop")
@@ -145,6 +163,8 @@ def status_cmd() -> None:
     ui.console.print(f"  mode:     [nav]{meta.mode}[/nav]")
     if meta.label:
         ui.console.print(f"  label:    [nav]{meta.label}[/nav]")
+    if meta.input_device:
+        ui.console.print(f"  input:    [nav]{meta.input_device}[/nav]")
     ui.console.print(f"  duration: [nav]{mins}m {secs}s[/nav]")
     for f in meta.files:
         ui.console.print(f"  file:     [soft]{f}[/soft]")
@@ -290,6 +310,7 @@ def _record_via_picker(*, mode: str) -> None:
     if label is None:
         return
     label = label.strip() or None
+    _warn_if_suspicious_input()
     try:
         meta = recorder.start(
             transcripts_dir=config.transcripts_dir(),
@@ -335,35 +356,36 @@ def _open_in_default_app(path: Path | str) -> None:
 
 def _transcribe_and_finalize(meta) -> str | None:
     """Run Whisper on recorded files, build the merged transcript, return its
-    path (or None on failure). Shows a Rich status spinner while Whisper
-    runs since transcription can take 10s to several minutes."""
+    path (or None on failure). Shows a Rich Progress bar driven by Whisper's
+    timestamp stream — gives both percentage done and estimated time
+    remaining."""
     model = config.get("whisper_model") or "base"
     out_dir = config.transcripts_dir()
     files = [Path(f) for f in meta.files]
 
     try:
         if meta.mode == "mic":
-            with ui.console.status(
-                f"[nav]Transcribing with Whisper ({model})...[/nav]",
-                spinner="dots",
-            ):
-                txt = transcribe.transcribe_one_track(files[0], out_dir, model=model)
+            txt = transcribe.transcribe_one_track(
+                files[0], out_dir, model=model,
+                console=ui.console,
+                description=f"Transcribing ({model})",
+            )
             if not config.get("keep_audio"):
                 files[0].unlink(missing_ok=True)
             return str(txt)
 
         # system mode: two tracks
         remote_wav, local_wav = files[0], files[1]
-        with ui.console.status(
-            f"[nav]Transcribing remote track ({model})...[/nav]",
-            spinner="dots",
-        ):
-            remote_json = transcribe.transcribe_file(remote_wav, out_dir, model=model)
-        with ui.console.status(
-            f"[nav]Transcribing local track ({model})...[/nav]",
-            spinner="dots",
-        ):
-            local_json = transcribe.transcribe_file(local_wav, out_dir, model=model)
+        remote_json = transcribe.transcribe_file(
+            remote_wav, out_dir, model=model,
+            console=ui.console,
+            description=f"Transcribing remote ({model})",
+        )
+        local_json = transcribe.transcribe_file(
+            local_wav, out_dir, model=model,
+            console=ui.console,
+            description=f"Transcribing local ({model})",
+        )
 
         # Merge to <stem>.txt where stem matches the timestamp+label without
         # the _remote / _local suffix.

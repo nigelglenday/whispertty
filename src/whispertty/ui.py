@@ -224,6 +224,8 @@ def live_recording_meter(meta) -> None:
             text.append(f"   {meta.label}", style="soft")
         text.append("\n\n  ", style="")
         text.append(f"{mins:02d}:{secs:02d}", style="bold wt")
+        if getattr(meta, "input_device", None):
+            text.append(f"   input: {meta.input_device}", style="soft")
         text.append("\n\n  ", style="")
         text.append("Press any key to stop and transcribe", style="soft")
         text.append("\n", style="")
