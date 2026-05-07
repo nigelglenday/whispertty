@@ -164,10 +164,10 @@ def show_help(interactive: bool = True) -> None:
     console.print("[nav]Picker keys[/nav]")
     console.print("  [nav]↑ / ↓[/nav]                            navigate")
     console.print("  [nav]type[/nav]                             fuzzy filter")
-    console.print("  [nav]Enter[/nav]                            copy to clipboard")
+    console.print("  [nav]Enter[/nav]                            preview + actions")
     console.print("  [nav]Esc / Ctrl-C[/nav]                     cancel / back")
     console.print()
-    console.print("[soft]To open in default app, run: whispertty <stem>[/soft]")
+    console.print("  After selecting a transcript: copy / open in default app / delete / back.")
     console.print()
 
     console.print("[nav]Recording modes[/nav]")
@@ -197,6 +197,67 @@ def show_help(interactive: bool = True) -> None:
         except (EOFError, KeyboardInterrupt):
             pass
         console.clear()
+
+
+def show_transcript_actions(t) -> str | None:
+    """Show a clear-screen preview of the transcript + action menu.
+
+    Returns one of:
+    - 'copy'  → copy to clipboard
+    - 'open'  → open in macOS default app
+    - 'delete' → delete + sibling files (caller confirms)
+    - None    → back to main picker
+    """
+    console.clear()
+    console.print()
+    console.print(f"  [wt]{t.stem}[/wt]")
+    meta_line = f"  [soft]{t.timestamp}"
+    if t.label:
+        meta_line += f"  ·  {t.label}"
+    meta_line += f"  ·  {_human_size(t.size)} · {t.path}[/soft]"
+    console.print(meta_line)
+    console.print(f"  [border]{'─' * 76}[/border]")
+    console.print()
+
+    try:
+        content = t.path.read_text()
+    except OSError as e:
+        console.print(f"  [bold red]Could not read transcript:[/bold red] {e}")
+        content = ""
+
+    # Cap the preview so very long calls don't dominate the screen.
+    max_chars = 4000
+    if len(content) > max_chars:
+        truncated = content[:max_chars]
+        console.print(truncated)
+        console.print(
+            f"\n  [soft]... truncated ({len(content) - max_chars} more chars; "
+            f"open in default app to see the full transcript)[/soft]"
+        )
+    else:
+        console.print(content if content else "  [soft](empty)[/soft]")
+
+    console.print()
+    console.print(f"  [border]{'─' * 76}[/border]")
+
+    return questionary.select(
+        "What now?",
+        choices=[
+            questionary.Choice(title="Copy to clipboard", value="copy"),
+            questionary.Choice(title="Open in default app", value="open"),
+            questionary.Choice(title="Delete (transcript + audio)", value="delete"),
+            questionary.Choice(title="Back to menu", value="back"),
+        ],
+        style=_picker_style,
+    ).ask()
+
+
+def confirm_delete(t) -> bool:
+    return questionary.confirm(
+        f"Delete '{t.stem}' and any audio/json siblings? (irreversible)",
+        default=False,
+        style=_picker_style,
+    ).ask() or False
 
 
 def live_recording_meter(meta) -> None:

@@ -338,8 +338,25 @@ def run_picker(no_splash: bool = False) -> None:
             ui.show_help()
             continue
 
-        # Selection is a Transcript — copy to clipboard.
-        last_action = _copy_transcript_to_clipboard(selection)
+        # Selection is a Transcript — show preview + actions.
+        last_action = _transcript_action_flow(selection)
+
+
+def _transcript_action_flow(t) -> str | None:
+    action = ui.show_transcript_actions(t)
+    if action in (None, "back"):
+        return None
+    if action == "copy":
+        return _copy_transcript_to_clipboard(t)
+    if action == "open":
+        _open_in_default_app(t.path)
+        return None  # no banner; the file opens visibly
+    if action == "delete":
+        if not ui.confirm_delete(t):
+            return None
+        removed = transcripts.delete(t.stem)
+        return f"Deleted '{t.stem}' ({len(removed)} file{'s' if len(removed) != 1 else ''})"
+    return None
 
 
 def _copy_to_clipboard(text: str) -> bool:
