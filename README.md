@@ -63,20 +63,18 @@ whispertty config <key> <val>    set a setting
 
 The picker also has `Record now`, `? Help`, and `Quit` entries at the bottom. While a recording is active, the picker shows `⏹ Stop recording` instead of the record entries.
 
-## Recording modes
+## Recording
 
-**`whispertty rec`** records the system default mic only. One track in, one transcript out. No setup beyond Whisper itself.
+`whispertty rec [label]` records the system default mic. Set the input in System Settings → Sound → Input. One track in, one transcript out.
 
-**`whispertty rec --system`** records both your mic AND system audio (the call you're on, music playing, anything routed through your speakers). Whisper transcribes each track separately and merges them with `Remote:` / `Local:` speaker labels in chronological order.
-
-System mode requires a one-time setup:
+For meetings where you want both speakers transcribed: wear headphones and use `whispertty rec --system [label]`. This records two tracks (mic + system audio via BlackHole) and merges them with speaker labels. Without headphones the speakers play call audio into the room and the mic picks it up, producing a distorted echo loop. Headphones break the loop. This mode also requires a one-time setup:
 
 1. `brew install blackhole-2ch` (then reboot)
-2. Open Audio MIDI Setup. Click **+** at bottom-left → **Create Multi-Output Device**.
-3. Check **MacBook Air Speakers** (or your default output) and **BlackHole 2ch**.
-4. Rename the new device to **Record + Speakers** (single-click the name to edit).
+2. Audio MIDI Setup → **+** → **Create Multi-Output Device**
+3. Check **MacBook Air Speakers** and **BlackHole 2ch**
+4. Rename the new device to **Record + Speakers**
 
-Whispertty auto-switches the system output to "Record + Speakers" when you start, and restores your previous output when you stop.
+Future: native diarization via pyannote.audio (single-track, ML-based speaker labels) is on the list.
 
 ## Config
 

@@ -97,13 +97,7 @@ def pick_transcript(transcripts: list, *, recording_active: bool = False) -> Opt
         )
     else:
         choices.append(
-            questionary.Choice(title="  ●  Record now (mic)", value=ACTION_RECORD)
-        )
-        choices.append(
-            questionary.Choice(
-                title="  ●  Record now (mic + system audio)",
-                value=ACTION_RECORD_SYSTEM,
-            )
+            questionary.Choice(title="  ●  Record now", value=ACTION_RECORD)
         )
     choices.append(questionary.Choice(title="  ? Help", value=ACTION_HELP))
     choices.append(questionary.Choice(title="  Quit", value=ACTION_CANCEL))
@@ -150,8 +144,7 @@ def show_help(interactive: bool = True) -> None:
     console.print("[nav]Commands[/nav]")
     console.print("  [nav]whispertty[/nav]                       splash + picker (this menu)")
     console.print("  [nav]whispertty <stem>[/nav]                open that transcript in default app")
-    console.print("  [nav]whispertty rec [label][/nav]           start recording (mic by default)")
-    console.print("  [nav]whispertty rec --system [label][/nav]  record mic + system audio")
+    console.print("  [nav]whispertty rec [label][/nav]           start a recording")
     console.print("  [nav]whispertty stop[/nav]                  stop and transcribe")
     console.print("  [nav]whispertty cp <stem>[/nav]             copy transcript to clipboard")
     console.print("  [nav]whispertty status[/nav]                show recording state")
@@ -170,12 +163,9 @@ def show_help(interactive: bool = True) -> None:
     console.print("  After selecting a transcript: copy / open in default app / delete / back.")
     console.print()
 
-    console.print("[nav]Recording modes[/nav]")
-    console.print("  [nav]mic[/nav]      single-track, system default mic. No setup.")
-    console.print("  [nav]system[/nav]   two-track (mic + system audio via BlackHole),")
-    console.print("           speaker labels in the merged transcript.")
-    console.print("           Requires BlackHole 2ch + a Multi-Output Device named")
-    console.print("           [soft]'Record + Speakers'[/soft] in Audio MIDI Setup.")
+    console.print("[nav]Recording[/nav]")
+    console.print("  Records the system default mic. Set the input in")
+    console.print("  System Settings → Sound → Input.")
     console.print()
 
     console.print("[nav]Files[/nav]")
