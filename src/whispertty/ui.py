@@ -192,18 +192,16 @@ def show_help(interactive: bool = True) -> None:
 def show_transcript_actions(t, feedback: str | None = None) -> str | None:
     """Show a clear-screen preview of the transcript + action menu.
 
-    `feedback` is a short banner (e.g. '✓ Copied!') shown above the header
-    on this render only — used so non-leaving actions (copy, open, reveal)
-    can confirm without dismissing the transcript view.
+    `feedback` is a short banner (e.g. '✓ Copied!') shown just above the
+    action menu (between the preview divider and the menu prompt). Used
+    so non-leaving actions can confirm without dismissing the transcript
+    view.
 
     Returns one of:
     - 'copy' / 'open' / 'reveal' / 'delete'
     - None  → back to main picker
     """
     console.clear()
-    if feedback:
-        console.print()
-        console.print(f"  [accent]{feedback}[/accent]")
     console.print()
     console.print(f"  [wt]{t.stem}[/wt]")
     meta_line = f"  [soft]{t.timestamp}"
@@ -234,6 +232,9 @@ def show_transcript_actions(t, feedback: str | None = None) -> str | None:
 
     console.print()
     console.print(f"  [border]{'─' * 76}[/border]")
+
+    if feedback:
+        console.print(f"  [accent]{feedback}[/accent]")
 
     return questionary.select(
         "What now?",
