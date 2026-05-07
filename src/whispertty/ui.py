@@ -196,6 +196,63 @@ def show_help(interactive: bool = True) -> None:
         console.clear()
 
 
+def live_recording_meter(meta) -> None:
+    """Block with a live ticker until the user presses any key.
+
+    Renders in the alternate buffer via Rich's Live (transient=True so the
+    meter clears when the recording stops). Stdin is put into cbreak mode
+    so a single keystroke is enough to break out — no Enter required.
+    """
+    import select
+    import sys
+    import termios
+    import time
+    import tty
+
+    from rich.live import Live
+    from rich.text import Text
+
+    def _render(elapsed: float) -> Text:
+        mins = int(elapsed // 60)
+        secs = int(elapsed % 60)
+        text = Text()
+        text.append("\n  ", style="")
+        text.append("●", style="bold red")
+        text.append("  Recording", style="bold")
+        text.append(f"  ({meta.mode})", style="soft")
+        if meta.label:
+            text.append(f"   {meta.label}", style="soft")
+        text.append("\n\n  ", style="")
+        text.append(f"{mins:02d}:{secs:02d}", style="bold wt")
+        text.append("\n\n  ", style="")
+        text.append("Press any key to stop and transcribe", style="soft")
+        text.append("\n", style="")
+        return text
+
+    if not sys.stdin.isatty():
+        return
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        with Live(_render(0), console=console, refresh_per_second=2, transient=True) as live:
+            try:
+                while True:
+                    if select.select([sys.stdin], [], [], 0.4)[0]:
+                        sys.stdin.read(1)
+                        # Drain any remaining bytes (multi-byte keys like
+                        # arrows leave trailing bytes in the stdin buffer).
+                        while select.select([sys.stdin], [], [], 0)[0]:
+                            sys.stdin.read(1)
+                        break
+                    live.update(_render(time.time() - meta.started))
+            except KeyboardInterrupt:
+                pass
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+
 def info(msg: str) -> None:
     console.print(f"[nav]{msg}[/nav]")
 

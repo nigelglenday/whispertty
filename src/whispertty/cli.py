@@ -291,16 +291,30 @@ def _record_via_picker(*, mode: str) -> None:
         return
     label = label.strip() or None
     try:
-        recorder.start(
+        meta = recorder.start(
             transcripts_dir=config.transcripts_dir(),
             mode=mode,
             label=label,
         )
     except (RuntimeError, ValueError) as e:
         ui.error(str(e))
+        return
+
+    # Block with a live counter; user presses any key to stop.
+    ui.live_recording_meter(meta)
+
+    try:
+        meta = recorder.stop()
+    except RuntimeError as e:
+        ui.error(str(e))
+        return
+    _transcribe_and_finalize(meta)
+    recorder.cleanup()
 
 
 def _stop_via_picker() -> None:
+    """Used when the picker is opened with a recording already in progress
+    (started from a different terminal / via `whispertty rec`)."""
     try:
         meta = recorder.stop()
     except RuntimeError as e:
