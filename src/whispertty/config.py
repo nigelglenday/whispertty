@@ -13,12 +13,13 @@ DEFAULTS: dict = {
     "whisper_model": "base",
     "default_recording": "mic",  # "mic" | "system"
     "auto_open_after_stop": False,
+    "auto_copy_on_stop": True,  # land transcript text on clipboard after stop
     "keep_audio": True,
     "output_format": "txt",  # "txt" | "md"
 }
 
 # Keys that store boolean values (used to coerce strings from CLI input).
-_BOOL_KEYS = {"auto_open_after_stop", "keep_audio"}
+_BOOL_KEYS = {"auto_open_after_stop", "auto_copy_on_stop", "keep_audio"}
 
 
 def config_path() -> Path:

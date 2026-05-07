@@ -141,6 +141,13 @@ def stop_cmd() -> None:
 
     if final_txt:
         ui.info(f"Saved: {final_txt}")
+        if config.get("auto_copy_on_stop"):
+            try:
+                text = Path(final_txt).read_text()
+                if _copy_to_clipboard(text):
+                    ui.info(f"Copied to clipboard ({len(text)} chars).")
+            except OSError:
+                pass
         if config.get("auto_open_after_stop"):
             _open_in_default_app(final_txt)
     else:
@@ -182,6 +189,27 @@ def ls_cmd() -> None:
     for t in items:
         label = t.label or ""
         print(f"{t.stem}\t{label}\t{t.size}\t{t.path}")
+
+
+@cli.command("cp")
+@click.argument("stem")
+def cp_cmd(stem: str) -> None:
+    """Copy a transcript's text to the clipboard."""
+    if stem.endswith(".txt"):
+        stem = stem[:-4]
+    t = transcripts.find(stem)
+    if not t:
+        ui.error(f"transcript not found: {stem}")
+        sys.exit(1)
+    try:
+        text = t.path.read_text()
+    except OSError as e:
+        ui.error(f"could not read {t.path}: {e}")
+        sys.exit(1)
+    if not _copy_to_clipboard(text):
+        ui.error("pbcopy failed; clipboard not updated.")
+        sys.exit(1)
+    ui.info(f"Copied '{t.stem}' to clipboard ({len(text)} chars).")
 
 
 @cli.command("rm")
@@ -264,9 +292,14 @@ config_grp.__class__ = _ConfigGroup
 
 
 def run_picker(no_splash: bool = False) -> None:
-    """Show the splash + picker; clears between iterations so each render
-    starts from a clean screen (no last-action banners, no questionary
-    residue from prior selections)."""
+    """Show the splash + picker; clears between iterations.
+
+    Enter on a transcript copies its text to the clipboard (the common
+    workflow: paste into a context-rich agent for next actions). The
+    'Copied X' confirmation persists for one iteration since clipboard
+    state isn't visible elsewhere.
+    """
+    last_action: str | None = None
 
     while True:
         items = transcripts.list_transcripts()
@@ -275,6 +308,10 @@ def run_picker(no_splash: bool = False) -> None:
         ui.console.clear()
         if not no_splash:
             ui.print_splash(len(items))
+
+        if last_action:
+            ui.console.print(f"  [accent]✓[/accent] [nav]{last_action}[/nav]\n")
+            last_action = None
 
         if not items and not recording_active:
             ui.info("No transcripts yet. Try `whispertty rec` to make your first one.")
@@ -286,29 +323,51 @@ def run_picker(no_splash: bool = False) -> None:
             return
 
         if selection == ui.ACTION_RECORD:
-            _record_via_picker(mode="mic")
+            last_action = _record_via_picker(mode="mic")
             continue
 
         if selection == ui.ACTION_RECORD_SYSTEM:
-            _record_via_picker(mode="system")
+            last_action = _record_via_picker(mode="system")
             continue
 
         if isinstance(selection, dict) and selection.get("_action") == "stop":
-            _stop_via_picker()
+            last_action = _stop_via_picker()
             continue
 
         if selection == ui.ACTION_HELP:
             ui.show_help()
             continue
 
-        # Selection is a Transcript — open it.
-        _open_in_default_app(selection.path)
+        # Selection is a Transcript — copy to clipboard.
+        last_action = _copy_transcript_to_clipboard(selection)
 
 
-def _record_via_picker(*, mode: str) -> None:
+def _copy_to_clipboard(text: str) -> bool:
+    try:
+        subprocess.run(["pbcopy"], input=text, text=True, check=True)
+        return True
+    except subprocess.SubprocessError:
+        return False
+
+
+def _copy_transcript_to_clipboard(t) -> str | None:
+    """Read transcript file, push to clipboard, return a status message
+    suitable for the 'last_action' banner."""
+    try:
+        text = t.path.read_text()
+    except OSError as e:
+        ui.error(f"could not read {t.path}: {e}")
+        return None
+    if _copy_to_clipboard(text):
+        return f"Copied '{t.stem}' to clipboard ({len(text)} chars)"
+    ui.error("pbcopy failed; clipboard not updated.")
+    return None
+
+
+def _record_via_picker(*, mode: str) -> str | None:
     label = ui.prompt_label()
     if label is None:
-        return
+        return None
     label = label.strip() or None
     _warn_if_suspicious_input()
     try:
@@ -319,7 +378,7 @@ def _record_via_picker(*, mode: str) -> None:
         )
     except (RuntimeError, ValueError) as e:
         ui.error(str(e))
-        return
+        return None
 
     # Block with a live counter; user presses any key to stop.
     ui.live_recording_meter(meta)
@@ -328,21 +387,40 @@ def _record_via_picker(*, mode: str) -> None:
         meta = recorder.stop()
     except RuntimeError as e:
         ui.error(str(e))
-        return
-    _transcribe_and_finalize(meta)
+        return None
+    final_txt = _transcribe_and_finalize(meta)
     recorder.cleanup()
+    return _autocopy_after_stop(final_txt)
 
 
-def _stop_via_picker() -> None:
+def _stop_via_picker() -> str | None:
     """Used when the picker is opened with a recording already in progress
     (started from a different terminal / via `whispertty rec`)."""
     try:
         meta = recorder.stop()
     except RuntimeError as e:
         ui.error(str(e))
-        return
-    _transcribe_and_finalize(meta)
+        return None
+    final_txt = _transcribe_and_finalize(meta)
     recorder.cleanup()
+    return _autocopy_after_stop(final_txt)
+
+
+def _autocopy_after_stop(final_txt: str | None) -> str | None:
+    """If a transcript was produced and auto_copy_on_stop is enabled, copy
+    its text to the clipboard. Returns a status string for the picker
+    last-action banner (or None)."""
+    if not final_txt:
+        return None
+    name = Path(final_txt).name
+    if config.get("auto_copy_on_stop"):
+        try:
+            text = Path(final_txt).read_text()
+            if _copy_to_clipboard(text):
+                return f"Saved & copied to clipboard: {name} ({len(text)} chars)"
+        except OSError:
+            pass
+    return f"Saved: {name}"
 
 
 # ---------------------------------------------------------------------------
