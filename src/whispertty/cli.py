@@ -343,23 +343,48 @@ def run_picker(no_splash: bool = False) -> None:
 
 
 def _transcript_action_flow(t) -> str | None:
-    action = ui.show_transcript_actions(t)
-    if action in (None, "back"):
-        return None
-    if action == "copy":
-        return _copy_transcript_to_clipboard(t)
-    if action == "open":
-        _open_in_default_app(t.path)
-        return None  # no banner; the file opens visibly
-    if action == "reveal":
-        subprocess.run(["open", "-R", str(t.path)], check=False)
-        return None  # Finder window opens, no banner needed
-    if action == "delete":
-        if not ui.confirm_delete(t):
+    """Stay on the transcript view and let the user perform multiple actions
+    in a row. Only Delete (after confirmation) and Back exit the flow."""
+    feedback: str | None = None
+
+    while True:
+        action = ui.show_transcript_actions(t, feedback=feedback)
+        feedback = None  # consumed; clear for next iteration
+
+        if action in (None, "back"):
             return None
-        removed = transcripts.delete(t.stem)
-        return f"Deleted '{t.stem}' ({len(removed)} file{'s' if len(removed) != 1 else ''})"
-    return None
+
+        if action == "copy":
+            try:
+                text = t.path.read_text()
+            except OSError as e:
+                feedback = f"✗ Could not read: {e}"
+                continue
+            if _copy_to_clipboard(text):
+                feedback = f"✓ Copied! ({len(text)} chars on clipboard)"
+            else:
+                feedback = "✗ pbcopy failed"
+            continue
+
+        if action == "open":
+            _open_in_default_app(t.path)
+            feedback = "✓ Opened in default app"
+            continue
+
+        if action == "reveal":
+            subprocess.run(["open", "-R", str(t.path)], check=False)
+            feedback = "✓ Revealed in Finder"
+            continue
+
+        if action == "delete":
+            if not ui.confirm_delete(t):
+                feedback = "Delete cancelled"
+                continue
+            removed = transcripts.delete(t.stem)
+            return (
+                f"Deleted '{t.stem}' "
+                f"({len(removed)} file{'s' if len(removed) != 1 else ''})"
+            )
 
 
 def _copy_to_clipboard(text: str) -> bool:

@@ -189,16 +189,21 @@ def show_help(interactive: bool = True) -> None:
         console.clear()
 
 
-def show_transcript_actions(t) -> str | None:
+def show_transcript_actions(t, feedback: str | None = None) -> str | None:
     """Show a clear-screen preview of the transcript + action menu.
 
+    `feedback` is a short banner (e.g. '✓ Copied!') shown above the header
+    on this render only — used so non-leaving actions (copy, open, reveal)
+    can confirm without dismissing the transcript view.
+
     Returns one of:
-    - 'copy'  → copy to clipboard
-    - 'open'  → open in macOS default app
-    - 'delete' → delete + sibling files (caller confirms)
-    - None    → back to main picker
+    - 'copy' / 'open' / 'reveal' / 'delete'
+    - None  → back to main picker
     """
     console.clear()
+    if feedback:
+        console.print()
+        console.print(f"  [accent]{feedback}[/accent]")
     console.print()
     console.print(f"  [wt]{t.stem}[/wt]")
     meta_line = f"  [soft]{t.timestamp}"
