@@ -235,6 +235,7 @@ def show_transcript_actions(t) -> str | None:
         choices=[
             questionary.Choice(title="Copy to clipboard", value="copy"),
             questionary.Choice(title="Open in default app", value="open"),
+            questionary.Choice(title="Reveal in Finder", value="reveal"),
             questionary.Choice(title="Delete (transcript + audio)", value="delete"),
             questionary.Choice(title="Back to menu", value="back"),
         ],

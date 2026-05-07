@@ -351,6 +351,9 @@ def _transcript_action_flow(t) -> str | None:
     if action == "open":
         _open_in_default_app(t.path)
         return None  # no banner; the file opens visibly
+    if action == "reveal":
+        subprocess.run(["open", "-R", str(t.path)], check=False)
+        return None  # Finder window opens, no banner needed
     if action == "delete":
         if not ui.confirm_delete(t):
             return None
