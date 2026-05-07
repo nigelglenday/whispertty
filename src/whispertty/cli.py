@@ -244,20 +244,17 @@ config_grp.__class__ = _ConfigGroup
 
 
 def run_picker(no_splash: bool = False) -> None:
-    splash_shown = False
-    last_action: str | None = None
+    """Show the splash + picker; clears between iterations so each render
+    starts from a clean screen (no last-action banners, no questionary
+    residue from prior selections)."""
 
     while True:
         items = transcripts.list_transcripts()
         recording_active = recorder.is_recording()
 
-        if not no_splash and not splash_shown:
+        ui.console.clear()
+        if not no_splash:
             ui.print_splash(len(items))
-            splash_shown = True
-
-        if last_action:
-            ui.console.print(f"  [accent]✓[/accent] [nav]{last_action}[/nav]\n")
-            last_action = None
 
         if not items and not recording_active:
             ui.info("No transcripts yet. Try `whispertty rec` to make your first one.")
@@ -269,62 +266,48 @@ def run_picker(no_splash: bool = False) -> None:
             return
 
         if selection == ui.ACTION_RECORD:
-            last_action = _record_via_picker(mode="mic")
-            ui.console.clear()
-            splash_shown = False
+            _record_via_picker(mode="mic")
             continue
 
         if selection == ui.ACTION_RECORD_SYSTEM:
-            last_action = _record_via_picker(mode="system")
-            ui.console.clear()
-            splash_shown = False
+            _record_via_picker(mode="system")
             continue
 
         if isinstance(selection, dict) and selection.get("_action") == "stop":
-            last_action = _stop_via_picker()
-            ui.console.clear()
-            splash_shown = False
+            _stop_via_picker()
             continue
 
         if selection == ui.ACTION_HELP:
             ui.show_help()
-            splash_shown = False
             continue
 
         # Selection is a Transcript — open it.
         _open_in_default_app(selection.path)
-        last_action = f"Opened {selection.stem}"
 
 
-def _record_via_picker(*, mode: str) -> str | None:
+def _record_via_picker(*, mode: str) -> None:
     label = ui.prompt_label()
     if label is None:
-        return None
+        return
     label = label.strip() or None
     try:
-        meta = recorder.start(
+        recorder.start(
             transcripts_dir=config.transcripts_dir(),
             mode=mode,
             label=label,
         )
     except (RuntimeError, ValueError) as e:
         ui.error(str(e))
-        return None
-    suffix = f" (label: {label})" if label else ""
-    return f"Recording started [{mode}]{suffix}"
 
 
-def _stop_via_picker() -> str | None:
+def _stop_via_picker() -> None:
     try:
         meta = recorder.stop()
     except RuntimeError as e:
         ui.error(str(e))
-        return None
-    final_txt = _transcribe_and_finalize(meta)
+        return
+    _transcribe_and_finalize(meta)
     recorder.cleanup()
-    if final_txt:
-        return f"Stopped and saved: {Path(final_txt).name}"
-    return "Stopped (no transcript produced)"
 
 
 # ---------------------------------------------------------------------------
@@ -338,22 +321,35 @@ def _open_in_default_app(path: Path | str) -> None:
 
 def _transcribe_and_finalize(meta) -> str | None:
     """Run Whisper on recorded files, build the merged transcript, return its
-    path (or None on failure)."""
+    path (or None on failure). Shows a Rich status spinner while Whisper
+    runs since transcription can take 10s to several minutes."""
     model = config.get("whisper_model") or "base"
     out_dir = config.transcripts_dir()
     files = [Path(f) for f in meta.files]
 
     try:
         if meta.mode == "mic":
-            txt = transcribe.transcribe_one_track(files[0], out_dir, model=model)
+            with ui.console.status(
+                f"[nav]Transcribing with Whisper ({model})...[/nav]",
+                spinner="dots",
+            ):
+                txt = transcribe.transcribe_one_track(files[0], out_dir, model=model)
             if not config.get("keep_audio"):
                 files[0].unlink(missing_ok=True)
             return str(txt)
 
         # system mode: two tracks
         remote_wav, local_wav = files[0], files[1]
-        remote_json = transcribe.transcribe_file(remote_wav, out_dir, model=model)
-        local_json = transcribe.transcribe_file(local_wav, out_dir, model=model)
+        with ui.console.status(
+            f"[nav]Transcribing remote track ({model})...[/nav]",
+            spinner="dots",
+        ):
+            remote_json = transcribe.transcribe_file(remote_wav, out_dir, model=model)
+        with ui.console.status(
+            f"[nav]Transcribing local track ({model})...[/nav]",
+            spinner="dots",
+        ):
+            local_json = transcribe.transcribe_file(local_wav, out_dir, model=model)
 
         # Merge to <stem>.txt where stem matches the timestamp+label without
         # the _remote / _local suffix.
