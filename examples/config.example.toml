@@ -1,0 +1,10 @@
+# Example whispertty config.
+# Save your real one to ~/.config/whispertty/config.toml.
+
+[settings]
+transcripts_dir = "/Users/you/Documents/transcripts"
+whisper_model = "base"            # base | small | medium | large
+default_recording = "mic"         # mic | system
+auto_open_after_stop = false
+keep_audio = true
+output_format = "txt"             # txt | md

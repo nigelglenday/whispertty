@@ -1,0 +1,36 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whispertty"
+version = "0.1.0"
+description = "Record, transcribe with Whisper, browse from a TUI."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Nigel Glenday" }]
+keywords = ["whisper", "transcription", "cli", "tui", "macos", "audio"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "rich>=13.0",
+    "questionary>=2.0",
+    "click>=8.1",
+    "tomli-w>=1.0",
+]
+
+[project.scripts]
+whispertty = "whispertty.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/nigelglenday/whispertty"
+Repository = "https://github.com/nigelglenday/whispertty"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/whispertty"]
