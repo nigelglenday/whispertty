@@ -52,9 +52,15 @@ def _load_pipeline(token: str):
 
 def diarize_audio(wav: Path, token: str) -> list[dict]:
     """Run pyannote diarization on a WAV. Returns a list of dicts with
-    keys: start, end, speaker (e.g. 'SPEAKER_00')."""
+    keys: start, end, speaker (e.g. 'SPEAKER_00').
+
+    Pyannote 3.x returns a `DiarizeOutput` dataclass. The Annotation we
+    iterate over is on `.speaker_diarization`. Older pyannote versions
+    returned the Annotation directly — handle both for compatibility.
+    """
     pipeline = _load_pipeline(token)
-    annotation = pipeline(str(wav))
+    result = pipeline(str(wav))
+    annotation = getattr(result, "speaker_diarization", result)
 
     segments: list[dict] = []
     for turn, _, speaker in annotation.itertracks(yield_label=True):
