@@ -227,10 +227,13 @@ def _diarize_transcript(t) -> str:
             "[soft]  3. Accept terms at https://huggingface.co/pyannote/segmentation-3.0[/soft]"
         )
         ui.console.print(
-            "[soft]  4. Generate read token at https://huggingface.co/settings/tokens[/soft]"
+            "[soft]  4. Accept terms at https://huggingface.co/pyannote/speaker-diarization-community-1[/soft]"
         )
         ui.console.print(
-            '[soft]  5. whispertty config hf_token "hf_xxxxx"[/soft]'
+            "[soft]  5. Generate read token at https://huggingface.co/settings/tokens[/soft]"
+        )
+        ui.console.print(
+            '[soft]  6. whispertty config hf_token "hf_xxxxx"[/soft]'
         )
         return "✗ hf_token not set"
 
