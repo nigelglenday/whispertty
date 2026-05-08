@@ -407,8 +407,9 @@ def run_picker(no_splash: bool = False) -> None:
             last_action = None
 
         if not items and not recording_active:
-            ui.info("No transcripts yet. Try `whispertty rec` to make your first one.")
-            return
+            ui.console.print(
+                "  [soft]No transcripts yet. Pick 'Record now' below to make your first one.[/soft]\n"
+            )
 
         selection = ui.pick_transcript(items, recording_active=recording_active)
 
