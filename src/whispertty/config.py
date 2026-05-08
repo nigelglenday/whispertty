@@ -17,6 +17,7 @@ DEFAULTS: dict = {
     "auto_copy_on_stop": True,  # land transcript text on clipboard after stop
     "keep_audio": True,
     "output_format": "txt",  # "txt" | "md"
+    "hf_token": "",  # Hugging Face read token for pyannote diarization
 }
 
 # Keys that store boolean values (used to coerce strings from CLI input).

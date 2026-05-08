@@ -21,7 +21,7 @@ from pathlib import Path
 
 import click
 
-from . import config, recorder, transcribe, transcripts, ui
+from . import config, diarize, recorder, transcribe, transcripts, ui
 
 
 class WhisperGroup(click.Group):
@@ -189,6 +189,99 @@ def ls_cmd() -> None:
     for t in items:
         label = t.label or ""
         print(f"{t.stem}\t{label}\t{t.size}\t{t.path}")
+
+
+@cli.command("diarize")
+@click.argument("stem")
+def diarize_cmd(stem: str) -> None:
+    """Run speaker diarization on an existing recording. Replaces the
+    plain transcript with a labeled version (Speaker_00 / Speaker_01 / ...).
+
+    Requires hf_token to be set:
+        whispertty config hf_token hf_xxxxx
+    """
+    if stem.endswith(".txt"):
+        stem = stem[:-4]
+    t = transcripts.find(stem)
+    if not t:
+        ui.error(f"transcript not found: {stem}")
+        sys.exit(1)
+    msg = _diarize_transcript(t)
+    if msg.startswith("✗"):
+        sys.exit(1)
+
+
+def _diarize_transcript(t) -> str:
+    """Run diarization on transcript `t`. Returns a status string suitable
+    for the picker last-action banner."""
+    token = config.get("hf_token")
+    if not token:
+        ui.error("hf_token not set. To enable diarization:")
+        ui.console.print(
+            "[soft]  1. Create a free HF account at https://huggingface.co[/soft]"
+        )
+        ui.console.print(
+            "[soft]  2. Accept terms at https://huggingface.co/pyannote/speaker-diarization-3.1[/soft]"
+        )
+        ui.console.print(
+            "[soft]  3. Accept terms at https://huggingface.co/pyannote/segmentation-3.0[/soft]"
+        )
+        ui.console.print(
+            "[soft]  4. Generate read token at https://huggingface.co/settings/tokens[/soft]"
+        )
+        ui.console.print(
+            '[soft]  5. whispertty config hf_token "hf_xxxxx"[/soft]'
+        )
+        return "✗ hf_token not set"
+
+    wav = t.path.with_suffix(".wav")
+    if not wav.exists():
+        ui.error(f"audio file not found: {wav}")
+        return f"✗ audio missing for {t.stem}"
+
+    json_path = t.path.with_suffix(".json")
+    out_dir = config.transcripts_dir()
+    model = config.get("whisper_model") or "base"
+
+    # Re-transcribe to get JSON if the sidecar isn't there (older recordings
+    # made before we started saving JSON alongside).
+    if not json_path.exists():
+        try:
+            backend = transcribe.resolve_backend(config.get("whisper_backend") or "auto")
+        except RuntimeError as e:
+            ui.error(str(e))
+            return f"✗ {e}"
+        ui.info(f"No JSON sidecar found. Re-transcribing {t.stem}...")
+        try:
+            transcribe.transcribe_file(
+                wav, out_dir, model=model, backend=backend,
+                console=ui.console,
+                description=f"Transcribing ({backend} · {model})",
+            )
+        except RuntimeError as e:
+            ui.error(str(e))
+            return f"✗ transcription failed"
+
+    # Run pyannote diarization.
+    try:
+        with ui.console.status(
+            "[nav]Running speaker diarization (pyannote)...[/nav]",
+            spinner="dots",
+        ):
+            diar_segments = diarize.diarize_audio(wav, token)
+    except Exception as e:
+        ui.error(f"diarization failed: {e}")
+        return f"✗ diarization failed"
+
+    # Merge into a labeled .txt, replacing the plain version.
+    try:
+        diarize.merge(json_path, diar_segments, t.path)
+    except Exception as e:
+        ui.error(f"merge failed: {e}")
+        return f"✗ merge failed"
+
+    n_speakers = len({s["speaker"] for s in diar_segments})
+    return f"✓ Diarized '{t.stem}' ({n_speakers} speaker{'s' if n_speakers != 1 else ''})"
 
 
 @cli.command("cp")
@@ -374,6 +467,14 @@ def _transcript_action_flow(t) -> str | None:
         if action == "reveal":
             subprocess.run(["open", "-R", str(t.path)], check=False)
             feedback = "✓ Revealed in Finder"
+            continue
+
+        if action == "diarize":
+            feedback = _diarize_transcript(t)
+            # Re-load transcript metadata since we just rewrote the .txt
+            refreshed = transcripts.find(t.stem)
+            if refreshed:
+                t = refreshed
             continue
 
         if action == "delete":

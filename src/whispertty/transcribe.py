@@ -278,9 +278,14 @@ def transcribe_one_track(
     console: Console | None = None,
     description: str = "Transcribing",
 ) -> Path:
-    """Transcribe a single-track recording. Returns the .txt path."""
+    """Transcribe a single-track recording. Writes JSON (source of truth)
+    AND a plain `.txt` derived from it. Returns the .txt path.
+
+    Keeping the JSON sidecar lets later steps (e.g. diarization) reuse the
+    timestamped segments without re-running Whisper.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
-    cmd = _build_cmd(backend, wav, output_dir, model, "txt")
+    cmd = _build_cmd(backend, wav, output_dir, model, "json")
     if console is not None:
         duration = wav_duration_seconds(wav)
         _run_whisper_with_progress(cmd, duration, description, console)
@@ -290,4 +295,22 @@ def transcribe_one_track(
             raise RuntimeError(
                 f"whisper failed (exit {proc.returncode}). stderr:\n{proc.stderr[-2000:]}"
             )
-    return output_dir / f"{wav.stem}.txt"
+
+    json_path = output_dir / f"{wav.stem}.json"
+    txt_path = output_dir / f"{wav.stem}.txt"
+    _write_plain_txt(json_path, txt_path)
+    return txt_path
+
+
+def _write_plain_txt(json_path: Path, txt_path: Path) -> None:
+    """Generate a plain `.txt` (one paragraph per segment) from a Whisper
+    JSON output."""
+    try:
+        data = json.loads(json_path.read_text())
+    except (OSError, ValueError):
+        return
+    with txt_path.open("w") as f:
+        for seg in data.get("segments", []):
+            text = (seg.get("text") or "").strip()
+            if text:
+                f.write(text + "\n")

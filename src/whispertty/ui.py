@@ -242,6 +242,7 @@ def show_transcript_actions(t, feedback: str | None = None) -> str | None:
             questionary.Choice(title="Copy to clipboard", value="copy"),
             questionary.Choice(title="Open in default app", value="open"),
             questionary.Choice(title="Reveal in Finder", value="reveal"),
+            questionary.Choice(title="Diarize (label speakers)", value="diarize"),
             questionary.Choice(title="Delete (transcript + audio)", value="delete"),
             questionary.Choice(title="Back to menu", value="back"),
         ],
