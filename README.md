@@ -2,9 +2,7 @@
 
 ![License](https://img.shields.io/badge/license-MIT-yellow) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Whisper](https://img.shields.io/badge/transcription-Whisper-cyan)
 
-> *Record. Transcribe. Browse.*
-
-A small TUI for recording audio, transcribing with Whisper, and finding old transcripts via fuzzy search. Hit Enter on one and it opens in your Mac default app.
+Record audio, transcribe with Whisper, optionally label speakers with pyannote, browse from a TUI picker.
 
 ```
 ██╗    ██╗██╗  ██╗██╗███████╗██████╗ ███████╗██████╗ ████████╗████████╗██╗   ██╗
@@ -15,14 +13,13 @@ A small TUI for recording audio, transcribing with Whisper, and finding old tran
  ╚══╝╚══╝ ╚═╝  ╚═╝╚═╝╚══════╝╚═╝     ╚══════╝╚═╝  ╚═╝   ╚═╝      ╚═╝      ╚═╝
 ```
 
-## What it is
+## Requirements
 
-Two things in one CLI:
-
-1. A **recorder** that captures mic-only or mic + system audio, writes a WAV, runs Whisper, and saves a labeled `.txt` transcript.
-2. A **picker** that lists every transcript in your transcripts directory and opens the one you select in your Mac default app.
-
-Requires macOS, Python 3.11+, ffmpeg, openai-whisper, and (for system audio mode) BlackHole 2ch + a Multi-Output Device named "Record + Speakers".
+- macOS, Python 3.11+
+- ffmpeg
+- openai-whisper or mlx-whisper
+- (optional, for diarization) pyannote.audio + Hugging Face token
+- (optional, for system audio capture) BlackHole 2ch + Multi-Output Device
 
 ## Install
 
@@ -30,85 +27,100 @@ Requires macOS, Python 3.11+, ffmpeg, openai-whisper, and (for system audio mode
 brew install pipx ffmpeg
 pipx ensurepath
 pipx install git+https://github.com/nigelglenday/whispertty.git
-```
-
-You also need Whisper installed somewhere whispertty can find:
-
-```bash
 pip install -U openai-whisper
+
+# optional: faster transcription on Apple Silicon
+pipx inject whispertty mlx-whisper
+
+# optional: speaker diarization
+pipx inject whispertty pyannote.audio
 ```
 
-For local dev:
-
-```bash
-git clone https://github.com/nigelglenday/whispertty.git
-cd whispertty
-pipx install -e .
-```
-
-## Use
+## Commands
 
 ```
 whispertty                       splash + arrow-key picker (type to filter)
-whispertty <stem>                open that transcript directly
-whispertty rec [label]           start recording (mic only)
-whispertty rec --system [label]  start recording mic + system audio
+whispertty <stem>                open transcript directly
+whispertty rec [label]           start recording, backgrounds
+whispertty rec --system [label]  record mic + system audio (requires BlackHole)
 whispertty stop                  stop and transcribe
-whispertty status                show recording state
+whispertty diarize <stem>        label speakers in an existing recording
+whispertty cp <stem>             copy transcript to clipboard
+whispertty status                recording state
 whispertty ls                    plain list, pipe-friendly
-whispertty rm <stem>             delete transcript + audio
+whispertty rm <stem>             delete transcript and audio
 whispertty config show           show settings
 whispertty config <key> <val>    set a setting
+whispertty help                  styled help
 ```
 
-The picker also has `Record now`, `? Help`, and `Quit` entries at the bottom. While a recording is active, the picker shows `⏹ Stop recording` instead of the record entries.
+In the picker, Enter on a transcript opens a preview with actions: Copy / Open in default app / Reveal in Finder / Diarize / Delete / Back.
 
 ## Recording
 
-`whispertty rec [label]` records the system default mic. Set the input in System Settings → Sound → Input. One track in, one transcript out.
+`whispertty rec` records the system default mic. Set the input in System Settings → Sound → Input.
 
-For meetings where you want both speakers transcribed: wear headphones and use `whispertty rec --system [label]`. This records two tracks (mic + system audio via BlackHole) and merges them with speaker labels. Without headphones the speakers play call audio into the room and the mic picks it up, producing a distorted echo loop. Headphones break the loop. This mode also requires a one-time setup:
+`whispertty rec --system` records two tracks (mic + system audio via BlackHole) and merges them with `Remote:` / `Local:` labels. Setup:
 
-1. `brew install blackhole-2ch` (then reboot)
-2. Audio MIDI Setup → **+** → **Create Multi-Output Device**
-3. Check **MacBook Air Speakers** and **BlackHole 2ch**
-4. Rename the new device to **Record + Speakers**
+1. `brew install blackhole-2ch`, then reboot
+2. Audio MIDI Setup → **+** → Create Multi-Output Device
+3. Check your normal output (e.g. MacBook Air Speakers) and BlackHole 2ch
+4. Rename the device to **Record + Speakers**
 
-Future: native diarization via pyannote.audio (single-track, ML-based speaker labels) is on the list.
+System mode auto-switches the system output when you start, restores it on stop. Wear headphones during the recording or your mic will pick up the speaker output and produce a distorted echo.
+
+## Diarization
+
+Single-track recordings can be retroactively labeled by speaker:
+
+```bash
+whispertty diarize <stem>
+```
+
+Replaces the plain transcript with `[mm:ss] SPEAKER_00:` / `SPEAKER_01:` labels. One-time setup:
+
+1. Free Hugging Face account at [huggingface.co](https://huggingface.co)
+2. Accept terms at:
+   - [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+   - [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+   - [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+3. Generate a read token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+4. `whispertty config hf_token hf_xxxxxxxx`
+
+Diarization is also available as an action in the picker preview.
+
+## Backends
+
+`whisper_backend` config controls which Whisper engine runs:
+
+- `auto` (default): use mlx-whisper if installed, else openai-whisper
+- `mlx`: force mlx-whisper (Apple Silicon, ~4x faster)
+- `openai`: force openai-whisper
+
+Models: `tiny`, `base`, `small`, `medium`, `large`. Set with `whispertty config whisper_model small`.
 
 ## Config
 
-Lives at `~/.config/whispertty/config.toml`. Created with sane defaults on first run.
+`~/.config/whispertty/config.toml`:
 
 ```toml
 [settings]
 transcripts_dir = "/Users/you/Documents/transcripts"
-whisper_model = "base"            # base | small | medium | large
+whisper_model = "base"
+whisper_backend = "auto"
 default_recording = "mic"
 auto_open_after_stop = false
+auto_copy_on_stop = true
 keep_audio = true
 output_format = "txt"
+hf_token = ""
 ```
 
-Edit by hand, or:
+## Files
 
-```bash
-whispertty config show
-whispertty config whisper_model small
-whispertty config auto_open_after_stop true
-```
-
-The `transcripts_dir` defaults to `~/Documents/transcripts/`, which is also where `call-record` writes. Both tools can coexist; whispertty's picker lists everything in that dir.
-
-## Why "whispertty"
-
-`whisper` for the transcription engine, `tty` for the terminal interface. It records, it writes `.txt`, and it lets you browse what you've recorded without leaving the terminal.
-
-## Limitations
-
-- **macOS only.** AppleScript-free but uses macOS-specific tools (avfoundation, SwitchAudioSource, `open`).
-- **Whisper SSL cert errors.** Some corporate VPNs (ZScaler, etc.) block Whisper's model downloads. The `base` model is bundled-ish (Whisper's first run downloads it), so on a clean machine you'll need an unrestricted network. If you hit `CERTIFICATE_VERIFY_FAILED`, run `/Applications/Python\ 3.13/Install\ Certificates.command` (adjust version), or pre-download the model on a different network and copy `~/.cache/whisper/` over.
-- **No real-time transcription.** Records to file, transcribes after stop. For push-to-talk dictation, see talktype or macOS built-in dictation.
+- `~/.config/whispertty/config.toml` — settings
+- `~/Documents/transcripts/` — `.wav` (audio) + `.json` (Whisper segments) + `.txt` (transcript)
+- `~/.whispertty.pid` / `~/.whispertty.meta` — recording state
 
 ## License
 
