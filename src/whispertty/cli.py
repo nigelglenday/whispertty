@@ -273,15 +273,17 @@ def _diarize_transcript(t) -> str:
         ):
             diar_segments = diarize.diarize_audio(wav, token)
     except Exception as e:
+        msg = str(e).splitlines()[0][:120]
         ui.error(f"diarization failed: {e}")
-        return f"✗ diarization failed"
+        return f"✗ diarize: {msg}"
 
     # Merge into a labeled .txt, replacing the plain version.
     try:
         diarize.merge(json_path, diar_segments, t.path)
     except Exception as e:
+        msg = str(e).splitlines()[0][:120]
         ui.error(f"merge failed: {e}")
-        return f"✗ merge failed"
+        return f"✗ merge: {msg}"
 
     n_speakers = len({s["speaker"] for s in diar_segments})
     return f"✓ Diarized '{t.stem}' ({n_speakers} speaker{'s' if n_speakers != 1 else ''})"
