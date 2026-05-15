@@ -1,6 +1,6 @@
 # whispertty
 
-![License](https://img.shields.io/badge/license-MIT-yellow) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Whisper](https://img.shields.io/badge/transcription-Whisper-cyan)
+![License](https://img.shields.io/badge/license-MIT-yellow) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Whisper](https://img.shields.io/badge/transcription-Whisper-cyan) ![Termpaper](https://img.shields.io/badge/suite-termpaper-cyan)
 
 Record audio, transcribe with Whisper, optionally label speakers with pyannote, browse from a TUI picker.
 
@@ -121,6 +121,16 @@ hf_token = ""
 - `~/.config/whispertty/config.toml` — settings
 - `~/Documents/transcripts/` — `.wav` (audio) + `.json` (Whisper segments) + `.txt` (transcript)
 - `~/.whispertty.pid` / `~/.whispertty.meta` — recording state
+
+## Part of termpaper
+
+`whispertty` is one of three TUI tools for managing Claude Code state from the terminal:
+
+- **[a-team](https://github.com/nigelglenday/a-team)** — manage parallel sessions in Ghostty
+- **[whispertty](https://github.com/nigelglenday/whispertty)** — record + transcribe + diarize audio (this repo)
+- **[skillbox](https://github.com/nigelglenday/skillbox)** — inventory and manage skills, slash commands, subagents
+
+See [termpaper.dev](https://termpaper.dev) for the suite.
 
 ## License
 
