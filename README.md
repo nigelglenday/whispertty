@@ -124,11 +124,12 @@ hf_token = ""
 
 ## Part of termpaper
 
-`whispertty` is one of three TUI tools for managing Claude Code state from the terminal:
+`whispertty` is one of four utilities for managing Claude Code state from the terminal:
 
 - **[a-team](https://github.com/nigelglenday/a-team)** — manage parallel sessions in Ghostty
 - **[whispertty](https://github.com/nigelglenday/whispertty)** — record + transcribe + diarize audio (this repo)
 - **[skillbox](https://github.com/nigelglenday/skillbox)** — inventory and manage skills, slash commands, subagents
+- **[eagent](https://github.com/nigelglenday/eagent)** — multi-session executive assistant pattern, file-based messaging
 
 See [termpaper.dev](https://termpaper.dev) for the suite.
 
