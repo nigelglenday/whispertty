@@ -1,6 +1,6 @@
 # whispertty
 
-![License](https://img.shields.io/badge/license-MIT-yellow) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Whisper](https://img.shields.io/badge/transcription-Whisper-cyan) ![Termpaper](https://img.shields.io/badge/suite-termpaper-cyan)
+![License](https://img.shields.io/badge/license-MIT-yellow) ![Python](https://img.shields.io/badge/python-3.11%2B-blue) ![Platform](https://img.shields.io/badge/platform-macOS-black) ![Whisper](https://img.shields.io/badge/transcription-Whisper-cyan) ![Termpaper](https://img.shields.io/badge/set-termpaper-cyan)
 
 Record audio, transcribe with Whisper, optionally label speakers with pyannote, browse from a TUI picker.
 
@@ -131,7 +131,7 @@ hf_token = ""
 - **[skillbox](https://github.com/nigelglenday/skillbox)** — inventory and manage skills, slash commands, subagents
 - **[eagent](https://github.com/nigelglenday/eagent)** — multi-session executive assistant pattern, file-based messaging
 
-See [termpaper.dev](https://termpaper.dev) for the suite.
+See [termpaper.dev](https://termpaper.dev) for the set.
 
 ## License
 
